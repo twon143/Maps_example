@@ -8,6 +8,9 @@ import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationManager;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.os.AsyncTask;
 import android.os.Looper;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -17,18 +20,31 @@ import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.v7.widget.CardView;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.Toast;
 
+import com.google.android.gms.common.GooglePlayServicesNotAvailableException;
+import com.google.android.gms.common.GooglePlayServicesRepairableException;
+import com.google.android.gms.common.api.Status;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.LocationSettingsRequest;
+
+
+import com.google.android.gms.location.places.Place;
+import com.google.android.gms.location.places.ui.PlaceAutocompleteFragment;
+import com.google.android.gms.location.places.ui.PlacePicker;
+import com.google.android.gms.location.places.ui.PlaceSelectionListener;
+
+
 import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -39,23 +55,141 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
+import org.xmlpull.v1.XmlPullParser;
+import org.xmlpull.v1.XmlPullParserException;
+import org.xmlpull.v1.XmlPullParserFactory;
+
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 
 import noman.googleplaces.NRPlaces;
-import noman.googleplaces.Place;
 import noman.googleplaces.PlaceType;
 import noman.googleplaces.PlacesException;
 import noman.googleplaces.PlacesListener;
 
 public class MainActivity extends AppCompatActivity implements OnMapReadyCallback, PlacesListener {
 
+    public void displayMarker(View view) {
+        ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        NetworkInfo info = manager.getActiveNetworkInfo();
+
+        if (info != null && info.isConnected()) {
+            ParseUrlTask task = new ParseUrlTask();
+            task.execute("http://openapi.gangnam.go.kr:8088/534d55444474776f3734424d6b6b43/xml/GnAnimalHospital/1/20");
+
+            //TODO: 파싱한 위치데이터를 맵에 마커로 표시해줘야 함.
+            Geocoder geocoder = new Geocoder(MainActivity.this, Locale.getDefault());
+
+            List<Address> addresses = new ArrayList<>();
+
+            mMap.clear();
+
+            for (edu.android.maps_example.Location location : list) {
+                try {
+                    addresses = geocoder.getFromLocationName(location.getAddress(), 1);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+
+
+
+                LatLng latLng = new LatLng(addresses.get(0).getLatitude(), addresses.get(0).getLongitude());
+
+                //TODO
+                MarkerOptions markerOptions = new MarkerOptions();
+                markerOptions.position(latLng);
+                markerOptions.title(location.getName());
+                markerOptions.snippet(location.getAddress());
+
+                Marker marker = mMap.addMarker(markerOptions);
+
+                previous_marker.add(marker);
+
+            }
+
+            /*//중복 마커 제거
+
+            HashSet<Marker> hashSet = new HashSet<>();
+
+            hashSet.addAll(previous_marker);
+
+            previous_marker.clear();
+
+            previous_marker.addAll(hashSet);*/
+        } else {
+            Toast.makeText(this, "사용 가능한 네트워크가 없습니다.", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    class ParseUrlTask extends AsyncTask<String, Void, String> {
+
+        @Override
+        protected String doInBackground(String... strings) {
+
+            HttpURLConnection connection = null;
+
+            try {
+                // 1. 웹 주소 문자열을 사용해서 URL 인스턴스 생성
+                URL url = new URL(strings[0]);
+                // 2. URL connection을 맺음
+                connection = (HttpURLConnection) url.openConnection();
+                // 3. URL 연결 설정(optional - 선택사항)
+                // 요청을 보낸 후 서버로부터 응답을 기다리는 시간
+                connection.setConnectTimeout(3000); // 단위: ms
+                // 응답을 읽는 InputStream의 대기 시간
+                connection.setReadTimeout(3000);
+                // 요청 방식 설정
+                connection.setRequestMethod("GET");
+
+                // 4. 서버와 연결
+                connection.connect();
+
+                // 5. 서버에서 보낸 응답 코드를 확인
+                int responceCode = connection.getResponseCode();
+                if (responceCode == HttpURLConnection.HTTP_OK || responceCode == HttpURLConnection.HTTP_MOVED_TEMP) {
+                    // 서버에서 정상적으로 응답이 도착한 경우
+                    list = parseLocationXml(connection.getInputStream());
+
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                if (connection != null) {
+                    connection.disconnect();
+                }
+            }
+            return null;
+        }
+
+        @Override
+        protected void onPreExecute() {
+            super.onPreExecute();
+        }
+
+        @Override
+        protected void onPostExecute(String s) {
+            /*Intent intent = new Intent(MainActivity.this, SecondActivity.class);
+            intent.putExtra("location", (Serializable) list);
+            startActivity(intent);*/
+        }
+
+        @Override
+        protected void onProgressUpdate(Void... values) {
+            super.onProgressUpdate(values);
+        }
+    }
+
+    private static final int PLACE_PICKER_REQUEST = 1;
+
     private static final String TAG = "edu.android.maps";
     private static final int GPS_ENABLE_REQUEST_CODE = 2001;
-    private static final int UPDATE_INTERVAL_MS = 10*1000;  // 10초
+    private static final int UPDATE_INTERVAL_MS = 10 * 1000;  // 10초
     private static final int FASTEST_UPDATE_INTERVAL_MS = 5000; // 5초
 
     // onRequestPermissionsResult에서 수신된 결과에서 ActivityCompat.requestPermissions를 사용한 퍼미션 요청을 구별하기 위해 사용됩니다.
@@ -91,15 +225,39 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     Button btnSearchPetStore;
     Button btnSearchCafe;
     Button btnSearchHospital;
-    Button btnSearchPark;
+    ImageButton place_picker;
+
+    List<edu.android.maps_example.Location> list = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
 
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
                 WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        setContentView(R.layout.activity_main);
+
+        getSupportActionBar().hide();
+
+        CardView cardView = findViewById(R.id.cardView);
+        cardView.setAlpha(0.85f);
+
+        PlaceAutocompleteFragment placeAutocompleteFragment = (PlaceAutocompleteFragment) getFragmentManager().findFragmentById(R.id.place_autocomplete_fragment);
+        placeAutocompleteFragment.setOnPlaceSelectedListener(new PlaceSelectionListener() {
+            @Override
+            public void onPlaceSelected(Place place) {
+                Location location = new Location("");
+                location.setLatitude(place.getLatLng().latitude);
+                location.setLongitude(place.getLatLng().longitude);
+
+                setCurrentLocation(location, place.getName().toString(), place.getAddress().toString());
+            }
+
+            @Override
+            public void onError(Status status) {
+
+            }
+        });
 
         btnSearchPetStore = findViewById(R.id.btnSearchPetStore);
         btnSearchPetStore.setOnClickListener(new View.OnClickListener() {
@@ -121,18 +279,28 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         btnSearchHospital.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                showPlaceInformation(currentPosition, PlaceType.HOSPITAL);
+//                showPlaceInformation(currentPosition, PlaceType.HOSPITAL);
+
 
             }
         });
 
-        btnSearchPark = findViewById(R.id.btnSearchPark);
-        btnSearchPark.setOnClickListener(new View.OnClickListener() {
+        place_picker = findViewById(R.id.place_picker);
+        place_picker.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                showPlaceInformation(currentPosition, PlaceType.PARK);
+                PlacePicker.IntentBuilder builder = new PlacePicker.IntentBuilder();
+
+                try {
+                    startActivityForResult(builder.build(MainActivity.this), PLACE_PICKER_REQUEST);
+                } catch (GooglePlayServicesRepairableException e) {
+                    e.printStackTrace();
+                } catch (GooglePlayServicesNotAvailableException e) {
+                    e.printStackTrace();
+                }
             }
         });
+
 
         previous_marker = new ArrayList<>();
 
@@ -235,7 +403,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         markerOptions.draggable(true);
 
 
-
         currentMarker = mMap.addMarker(markerOptions);
 
         CameraUpdate cameraUpdate = CameraUpdateFactory.newLatLng(currentLatLng);
@@ -281,7 +448,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
             Log.d(TAG, "startLocationUpdates : call showDialogForLocationServiceSetting");
             showDialogForLocationServiceSetting();
-        }else {
+        } else {
 
             int hasFineLocationPermission = ContextCompat.checkSelfPermission(this,
                     Manifest.permission.ACCESS_FINE_LOCATION);
@@ -289,9 +456,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     Manifest.permission.ACCESS_COARSE_LOCATION);
 
 
-
             if (hasFineLocationPermission != PackageManager.PERMISSION_GRANTED ||
-                    hasCoarseLocationPermission != PackageManager.PERMISSION_GRANTED   ) {
+                    hasCoarseLocationPermission != PackageManager.PERMISSION_GRANTED) {
 
                 Log.d(TAG, "startLocationUpdates : 퍼미션 안가지고 있음");
                 return;
@@ -318,9 +484,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 Manifest.permission.ACCESS_COARSE_LOCATION);
 
 
-
         if (hasFineLocationPermission == PackageManager.PERMISSION_GRANTED &&
-                hasCoarseLocationPermission == PackageManager.PERMISSION_GRANTED   ) {
+                hasCoarseLocationPermission == PackageManager.PERMISSION_GRANTED) {
             return true;
         }
 
@@ -358,9 +523,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 Manifest.permission.ACCESS_COARSE_LOCATION);
 
 
-
         if (hasFineLocationPermission == PackageManager.PERMISSION_GRANTED &&
-                hasCoarseLocationPermission == PackageManager.PERMISSION_GRANTED   ) {
+                hasCoarseLocationPermission == PackageManager.PERMISSION_GRANTED) {
 
             // 2. 이미 퍼미션을 가지고 있다면
             // ( 안드로이드 6.0 이하 버전은 런타임 퍼미션이 필요없기 때문에 이미 허용된 걸로 인식합니다.)
@@ -369,7 +533,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             startLocationUpdates(); // 3. 위치 업데이트 시작
 
 
-        }else {  //2. 퍼미션 요청을 허용한 적이 없다면 퍼미션 요청이 필요합니다. 2가지 경우(3-1, 4-1)가 있습니다.
+        } else {  //2. 퍼미션 요청을 허용한 적이 없다면 퍼미션 요청이 필요합니다. 2가지 경우(3-1, 4-1)가 있습니다.
 
             // 3-1. 사용자가 퍼미션 거부를 한 적이 있는 경우에는
             if (ActivityCompat.shouldShowRequestPermissionRationale(this, REQUIRED_PERMISSIONS[0])) {
@@ -382,7 +546,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     public void onClick(View view) {
 
                         // 3-3. 사용자게에 퍼미션 요청을 합니다. 요청 결과는 onRequestPermissionResult에서 수신됩니다.
-                        ActivityCompat.requestPermissions( MainActivity.this, REQUIRED_PERMISSIONS,
+                        ActivityCompat.requestPermissions(MainActivity.this, REQUIRED_PERMISSIONS,
                                 PERMISSIONS_REQUEST_CODE);
                     }
                 }).show();
@@ -391,12 +555,11 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             } else {
                 // 4-1. 사용자가 퍼미션 거부를 한 적이 없는 경우에는 퍼미션 요청을 바로 합니다.
                 // 요청 결과는 onRequestPermissionResult에서 수신됩니다.
-                ActivityCompat.requestPermissions( this, REQUIRED_PERMISSIONS,
+                ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS,
                         PERMISSIONS_REQUEST_CODE);
             }
 
         }
-
 
 
         mMap.getUiSettings().setMyLocationButtonEnabled(true);
@@ -406,7 +569,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             @Override
             public void onMapClick(LatLng latLng) {
 
-                Log.d( TAG, "onMapClick :");
+                Log.d(TAG, "onMapClick :");
             }
         });
 
@@ -424,7 +587,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             Log.d(TAG, "onStart : call mFusedLocationClient.requestLocationUpdates");
             locationClient.requestLocationUpdates(locationRequest, locationCallback, null);
 
-            if (mMap!=null)
+            if (mMap != null)
                 mMap.setMyLocationEnabled(true);
 
         }
@@ -468,7 +631,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
 
-        if ( requestCode == PERMISSIONS_REQUEST_CODE && grantResults.length == REQUIRED_PERMISSIONS.length) {
+        if (requestCode == PERMISSIONS_REQUEST_CODE && grantResults.length == REQUIRED_PERMISSIONS.length) {
 
             // 요청 코드가 PERMISSIONS_REQUEST_CODE 이고, 요청한 퍼미션 개수만큼 수신되었다면
 
@@ -485,12 +648,11 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
 
 
-            if ( check_result ) {
+            if (check_result) {
 
                 // 퍼미션을 허용했다면 위치 업데이트를 시작합니다.
                 startLocationUpdates();
-            }
-            else {
+            } else {
                 // 거부한 퍼미션이 있다면 앱을 사용할 수 없는 이유를 설명해주고 앱을 종료합니다.2 가지 경우가 있습니다.
 
                 if (ActivityCompat.shouldShowRequestPermissionRationale(this, REQUIRED_PERMISSIONS[0])
@@ -508,7 +670,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                         }
                     }).show();
 
-                }else {
+                } else {
 
 
                     // "다시 묻지 않음"을 사용자가 체크하고 거부를 선택한 경우에는 설정(앱 정보)에서 퍼미션을 허용해야 앱을 사용할 수 있습니다.
@@ -549,6 +711,15 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 }
 
                 break;
+
+            case PLACE_PICKER_REQUEST:
+                if (resultCode == RESULT_OK) {
+                    Place place = PlacePicker.getPlace(this, data);
+                    String toastMsg = String.format("Place: %s", place.getName());
+                    Toast.makeText(this, toastMsg, Toast.LENGTH_LONG).show();
+                }
+
+                break;
         }
     }
 
@@ -563,7 +734,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     @Override
-    public void onPlacesSuccess(final List<Place> places) {
+    public void onPlacesSuccess(final List<noman.googleplaces.Place> places) {
 
         runOnUiThread(new Runnable() {
 
@@ -617,8 +788,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     }
 
-    public void showPlaceInformation(LatLng location, String type)
-    {
+    public void showPlaceInformation(LatLng location, String type) {
         mMap.clear();//지도 클리어
 
         if (previous_marker != null)
@@ -634,17 +804,74 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 .execute();
     }
 
-    /*public void searchPlace(View view) {
-        String type = null;
-        if(view.getId() == R.id.btnSearchPetStore){
-            type = PlaceType.PET_STORE;
-        }else if(view.getId() == R.id.btnSearchCafe){
-            type = PlaceType.CAFE;
-        }else if(view.getId() == R.id.btnSearchHospital){
-            type = PlaceType.HOSPITAL;
-        }else if(view.getId() == R.id.btnSearchPark){
-            type = PlaceType.PARK;
+    private List<edu.android.maps_example.Location> parseLocationXml(InputStream inputStream) throws XmlPullParserException, IOException {
+        List<edu.android.maps_example.Location> list = new ArrayList<>();
+
+        String currentTag = null;
+        String name = null, address = null, status = null, phone = null;
+        boolean bSet = false;
+
+        XmlPullParserFactory factory = XmlPullParserFactory.newInstance();
+        XmlPullParser parser = factory.newPullParser();
+
+        parser.setInput(inputStream, null);
+
+        int eventType = parser.getEventType();
+        while (eventType != XmlPullParser.END_DOCUMENT) {
+            switch (eventType) {
+                case XmlPullParser.START_TAG:
+                    currentTag = parser.getName();
+                    if (currentTag.equals("WRKP_NM") | currentTag.equals("TRD_STATE_GBN_CTN") | currentTag.equals("SITE_ADDR") | currentTag.equals("SITE_TEL")) {
+                        bSet = true;
+                    }
+                    break;
+                case XmlPullParser.TEXT:
+                    if (bSet) {
+                        switch (currentTag) {
+                            case "WRKP_NM":
+                                name = parser.getText();
+                                break;
+                            case "TRD_STATE_GBN_CTN":
+                                status = parser.getText();
+                                break;
+                            case "SITE_ADDR":
+                                address = parser.getText();
+                                break;
+                            case "SITE_TEL":
+                                phone = parser.getText();
+                                break;
+                        }
+                    }
+
+                    break;
+                case XmlPullParser.END_TAG:
+                    currentTag = parser.getName();
+                    bSet = false;
+                    if (currentTag != null && currentTag.equals("row")) {
+                        list.add(new edu.android.maps_example.Location(name, address, status, phone));
+                    }
+
+                    break;
+
+            }
+
+            eventType = parser.next();
         }
-        showPlaceInformation(currentPosition, PlaceType.PET_STORE);
-    }*/
+
+        return list;
+    }
+
+    public void parseXml(View view) {
+
+        ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+        NetworkInfo info = manager.getActiveNetworkInfo();
+
+        if (info != null && info.isConnected()) {
+            ParseUrlTask task = new ParseUrlTask();
+            task.execute("http://openapi.gangnam.go.kr:8088/534d55444474776f3734424d6b6b43/xml/GnAnimalHospital/1/20");
+        } else {
+            Toast.makeText(this, "사용 가능한 네트워크가 없습니다.", Toast.LENGTH_SHORT).show();
+        }
+
+    }
 }
