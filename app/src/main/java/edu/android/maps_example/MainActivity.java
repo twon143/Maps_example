@@ -4,10 +4,14 @@ import android.Manifest;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationManager;
+import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Looper;
 import android.support.annotation.NonNull;
@@ -233,8 +237,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         getSupportActionBar().hide();
 
 
-        CardView cardView = findViewById(R.id.cardView);
-        cardView.setAlpha(0.85f);
+       /* CardView cardView = findViewById(R.id.cardView);
+        cardView.setAlpha(0.85f);*/
 
         PlaceAutocompleteFragment placeAutocompleteFragment = (PlaceAutocompleteFragment) getFragmentManager().findFragmentById(R.id.place_autocomplete_fragment);
         placeAutocompleteFragment.setOnPlaceSelectedListener(new PlaceSelectionListener() {
@@ -396,12 +400,18 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         markerOptions.position(currentLatLng);
         markerOptions.title(markerTitle);
         markerOptions.snippet(markerSnippet);
+
+        BitmapDrawable drawable = (BitmapDrawable) getResources().getDrawable(R.drawable.marker);
+        Bitmap b = drawable.getBitmap();
+        Bitmap smallMarker = Bitmap.createScaledBitmap(b, 150, 150, false);
+        markerOptions.icon(BitmapDescriptorFactory.fromBitmap(smallMarker));
+
         markerOptions.draggable(true);
 
         currentMarker = mMap.addMarker(markerOptions);
 
-        /*CameraUpdate cameraUpdate = CameraUpdateFactory.newLatLng(currentLatLng);
-        mMap.moveCamera(cameraUpdate);*/
+        CameraUpdate cameraUpdate = CameraUpdateFactory.newLatLng(currentLatLng);
+        mMap.moveCamera(cameraUpdate);
 
 
     }
@@ -511,6 +521,12 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         mClusterManager = new ClusterManager<>(this, mMap);
         mMap.setOnCameraIdleListener(mClusterManager);
         mMap.setOnMarkerClickListener(mClusterManager);
+        mMap.setOnInfoWindowClickListener(new GoogleMap.OnInfoWindowClickListener() {
+            @Override
+            public void onInfoWindowClick(Marker marker) {
+
+            }
+        });
 
         //런타임 퍼미션 요청 대화상자나 GPS 활성 요청 대화상자 보이기전에
         //지도의 초기위치를 서울로 이동
@@ -626,7 +642,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
         currentMarker = mMap.addMarker(markerOptions);
 
-        CameraUpdate cameraUpdate = CameraUpdateFactory.newLatLng(DEFAULT_LOCATION);
+        CameraUpdate cameraUpdate = CameraUpdateFactory.newLatLngZoom(DEFAULT_LOCATION, 15f);
         mMap.moveCamera(cameraUpdate);
 
     }
@@ -804,7 +820,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 .listener(MainActivity.this)
                 .key("AIzaSyCmwhxZezwoJR_EzaVc19JCLJvG1PQ5xL0")
                 .latlng(location.latitude, location.longitude)//현재 위치
-                .radius(300) //300 미터 내에서 검색
+                .radius(500) //500 미터 내에서 검색
                 .type(type) //타입지정( ex)PlaceType.Cafe)
                 .build()
                 .execute();

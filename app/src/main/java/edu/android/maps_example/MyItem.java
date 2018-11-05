@@ -32,4 +32,5 @@ public class MyItem implements ClusterItem {
     public String getSnippet() {
         return mSnippet;
     }
+
 }
