@@ -124,7 +124,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     private ClusterManager<MyItem> mClusterManager;
 
 
-    class ParseUrlTask extends AsyncTask<String, MarkerOptions, String> {
+    class ParseUrlTask extends AsyncTask<String, MyItem, String> {
 
         @Override
         protected String doInBackground(String... strings) {
@@ -178,16 +178,15 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                         markerOptions.snippet(location.getAddress());
                         markerOptions.title(location.getName());*/
 
-                        mClusterManager.addItem(new MyItem(latLng.latitude, latLng.longitude, location.getName(), location.getAddress()));
-
                         /*if (location.getStatus().equals("정상")) {
                             markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN));
                         } else {
                             markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
 
-                        }
+                        }*/
+                        MyItem item = new MyItem(latLng.latitude, latLng.longitude, location.getName(), location.getAddress());
+                        publishProgress(item);
 
-                        publishProgress(markerOptions);*/
 
 
                     }
@@ -219,10 +218,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         }
 
-        /*@Override
-        protected void onProgressUpdate(MarkerOptions... options) {
-            mMap.addMarker(options[0]);
-        }*/
+        @Override
+        protected void onProgressUpdate(MyItem... values) {
+            mClusterManager.addItem(values[0]);
+        }
     }
 
 
@@ -882,5 +881,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         return list;
     }
+
 
 }
