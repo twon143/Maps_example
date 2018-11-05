@@ -8,8 +8,6 @@ import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationManager;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
 import android.os.AsyncTask;
 import android.os.Looper;
 import android.support.annotation.NonNull;
@@ -54,6 +52,7 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.maps.android.clustering.ClusterManager;
 
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
@@ -74,126 +73,6 @@ import noman.googleplaces.PlacesException;
 import noman.googleplaces.PlacesListener;
 
 public class MainActivity extends AppCompatActivity implements OnMapReadyCallback, PlacesListener {
-
-    class ParseUrlTask extends AsyncTask<String, MarkerOptions, String> {
-
-        @Override
-        protected String doInBackground(String... strings) {
-
-            HttpURLConnection connection = null;
-            InputStream in = null;
-            try {
-                // 1. 웹 주소 문자열을 사용해서 URL 인스턴스 생성
-                URL url = new URL(strings[0]);
-                // 2. URL connection을 맺음
-                connection = (HttpURLConnection) url.openConnection();
-                // 3. URL 연결 설정(optional - 선택사항)
-                // 요청을 보낸 후 서버로부터 응답을 기다리는 시간
-                connection.setConnectTimeout(3000); // 단위: ms
-                // 응답을 읽는 InputStream의 대기 시간
-                connection.setReadTimeout(3000);
-                // 요청 방식 설정
-                connection.setRequestMethod("GET");
-
-                // 4. 서버와 연결
-                connection.connect();
-
-                // 5. 서버에서 보낸 응답 코드를 확인
-                int responceCode = connection.getResponseCode();
-                in = connection.getInputStream();
-                if (responceCode == HttpURLConnection.HTTP_OK || responceCode == HttpURLConnection.HTTP_MOVED_TEMP) {
-                    // 서버에서 정상적으로 응답이 도착한 경우
-                    list = parseLocationXml(in);
-                    Log.i(TAG, "list size: " + list.size());
-
-                    //TODO: 파싱한 위치데이터를 맵에 마커로 표시해줘야 함.
-                    Geocoder geocoder = new Geocoder(MainActivity.this, Locale.getDefault());
-
-                    List<Address> addresses = new ArrayList<>();
-
-                    for (edu.android.maps_example.Location location : list) {
-
-                        try {
-                            addresses = geocoder.getFromLocationName(location.getAddress(), 1);
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-
-                        LatLng latLng = new LatLng(addresses.get(0).getLatitude(), addresses.get(0).getLongitude());
-
-                        //TODO
-                        MarkerOptions markerOptions = new MarkerOptions();
-                        markerOptions.position(latLng);
-                        markerOptions.snippet(location.getAddress());
-                        markerOptions.title(location.getName());
-
-                        if (location.getStatus().equals("정상")) {
-                            markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN));
-                        } else {
-                            markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
-
-                        }
-
-                        publishProgress(markerOptions);
-
-
-                    }
-
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            } finally {
-                try {
-                    in.close();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-                if (connection != null) {
-                    connection.disconnect();
-                }
-            }
-            return null;
-        }
-
-        @Override
-        protected void onPreExecute() {
-            mMap.clear();
-        }
-
-        @Override
-        protected void onPostExecute(String s) {
-            Log.i(TAG, "onPostExecute: " + s);
-
-            /*//TODO: 파싱한 위치데이터를 맵에 마커로 표시해줘야 함.
-            Geocoder geocoder = new Geocoder(MainActivity.this, Locale.getDefault());
-
-            List<Address> addresses = new ArrayList<>();
-
-            for (edu.android.maps_example.Location location : list) {
-                try {
-                    addresses = geocoder.getFromLocationName(location.getAddress(), 1);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-
-                LatLng latLng = new LatLng(addresses.get(0).getLatitude(), addresses.get(0).getLongitude());
-
-                //TODO
-                MarkerOptions markerOptions = new MarkerOptions();
-                markerOptions.position(latLng);
-                markerOptions.snippet(location.getAddress());
-                markerOptions.title(location.getName());
-
-//                mMap.addMarker(markerOptions);
-
-            }*/
-        }
-
-        @Override
-        protected void onProgressUpdate(MarkerOptions... options) {
-            mMap.addMarker(options[0]);
-        }
-    }
 
     private static final int PLACE_PICKER_REQUEST = 1;
 
@@ -238,6 +117,110 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     ImageButton place_picker;
 
     List<edu.android.maps_example.Location> list = null;
+    private ClusterManager<MyItem> mClusterManager;
+
+
+    class ParseUrlTask extends AsyncTask<String, MarkerOptions, String> {
+
+        @Override
+        protected String doInBackground(String... strings) {
+
+            mClusterManager.clearItems();
+
+            HttpURLConnection connection = null;
+            InputStream in = null;
+            try {
+                // 1. 웹 주소 문자열을 사용해서 URL 인스턴스 생성
+                URL url = new URL(strings[0]);
+                // 2. URL connection을 맺음
+                connection = (HttpURLConnection) url.openConnection();
+                // 3. URL 연결 설정(optional - 선택사항)
+                // 요청을 보낸 후 서버로부터 응답을 기다리는 시간
+                connection.setConnectTimeout(3000); // 단위: ms
+                // 응답을 읽는 InputStream의 대기 시간
+                connection.setReadTimeout(3000);
+                // 요청 방식 설정
+                connection.setRequestMethod("GET");
+
+                // 4. 서버와 연결
+                connection.connect();
+
+                // 5. 서버에서 보낸 응답 코드를 확인
+                int responceCode = connection.getResponseCode();
+                in = connection.getInputStream();
+                if (responceCode == HttpURLConnection.HTTP_OK || responceCode == HttpURLConnection.HTTP_MOVED_TEMP) {
+                    // 서버에서 정상적으로 응답이 도착한 경우
+                    list = parseLocationXml(in);
+                    Log.i(TAG, "list size: " + list.size());
+
+                    //TODO: 파싱한 위치데이터를 맵에 마커로 표시해줘야 함.
+                    Geocoder geocoder = new Geocoder(MainActivity.this, Locale.getDefault());
+
+                    List<Address> addresses = new ArrayList<>();
+
+                    for (edu.android.maps_example.Location location : list) {
+
+                        try {
+                            addresses = geocoder.getFromLocationName(location.getAddress(), 1);
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+
+                        LatLng latLng = new LatLng(addresses.get(0).getLatitude(), addresses.get(0).getLongitude());
+
+                        //TODO
+                        /*MarkerOptions markerOptions = new MarkerOptions();
+                        markerOptions.position(latLng);
+                        markerOptions.snippet(location.getAddress());
+                        markerOptions.title(location.getName());*/
+
+                        mClusterManager.addItem(new MyItem(latLng.latitude, latLng.longitude, location.getName(), location.getAddress()));
+
+                        /*if (location.getStatus().equals("정상")) {
+                            markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN));
+                        } else {
+                            markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
+
+                        }
+
+                        publishProgress(markerOptions);*/
+
+
+                    }
+
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                try {
+                    in.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                if (connection != null) {
+                    connection.disconnect();
+                }
+            }
+            return null;
+        }
+
+        @Override
+        protected void onPreExecute() {
+            mMap.clear();
+        }
+
+        @Override
+        protected void onPostExecute(String s) {
+            Log.i(TAG, "onPostExecute: " + s);
+
+        }
+
+        /*@Override
+        protected void onProgressUpdate(MarkerOptions... options) {
+            mMap.addMarker(options[0]);
+        }*/
+    }
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -392,12 +375,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
 
         if (addresses == null || addresses.size() == 0) {
-//            Toast.makeText(this, "주소 미발견", Toast.LENGTH_LONG).show();
             return "주소 미발견";
 
         } else {
             Address address = addresses.get(0);
-//            Toast.makeText(this, address.getAddressLine(0), Toast.LENGTH_SHORT).show();
             return address.getAddressLine(0);
         }
 
@@ -417,11 +398,11 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         markerOptions.snippet(markerSnippet);
         markerOptions.draggable(true);
 
-
         currentMarker = mMap.addMarker(markerOptions);
 
-        CameraUpdate cameraUpdate = CameraUpdateFactory.newLatLng(currentLatLng);
-        mMap.moveCamera(cameraUpdate);
+        /*CameraUpdate cameraUpdate = CameraUpdateFactory.newLatLng(currentLatLng);
+        mMap.moveCamera(cameraUpdate);*/
+
 
     }
 
@@ -510,7 +491,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     }
 
-
     private void createLocationRequest() {
         locationRequest = new LocationRequest()
                 .setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY)
@@ -527,6 +507,10 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         Log.d(TAG, "onMapReady :");
 
         mMap = googleMap;
+
+        mClusterManager = new ClusterManager<>(this, mMap);
+        mMap.setOnCameraIdleListener(mClusterManager);
+        mMap.setOnMarkerClickListener(mClusterManager);
 
         //런타임 퍼미션 요청 대화상자나 GPS 활성 요청 대화상자 보이기전에
         //지도의 초기위치를 서울로 이동
@@ -580,15 +564,15 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
 
         mMap.getUiSettings().setMyLocationButtonEnabled(true);
-        mMap.animateCamera(CameraUpdateFactory.zoomTo(17));
-        mMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
+//        mMap.animateCamera(CameraUpdateFactory.zoomTo(17));
+        /*mMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
 
             @Override
             public void onMapClick(LatLng latLng) {
 
                 Log.d(TAG, "onMapClick :");
             }
-        });
+        });*/
 
 
     }
@@ -642,7 +626,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
         currentMarker = mMap.addMarker(markerOptions);
 
-        CameraUpdate cameraUpdate = CameraUpdateFactory.newLatLngZoom(DEFAULT_LOCATION, 16);
+        CameraUpdate cameraUpdate = CameraUpdateFactory.newLatLng(DEFAULT_LOCATION);
         mMap.moveCamera(cameraUpdate);
 
     }
@@ -761,30 +745,33 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
             public void run() {
 
-                for (noman.googleplaces.Place place : places) {
+                mClusterManager.clearItems();
 
+                for (noman.googleplaces.Place place : places) {
 
                     LatLng latLng = new LatLng(place.getLatitude(), place.getLongitude());
 
                     String markerSnippet = getCurrentAddress(latLng);
 
-                    MarkerOptions markerOptions = new MarkerOptions();
+                    /*MarkerOptions markerOptions = new MarkerOptions();
 
                     markerOptions.position(latLng);
 
                     markerOptions.title(place.getName());
 
-                    markerOptions.snippet(markerSnippet);
+                    markerOptions.snippet(markerSnippet);*/
 
-                    Marker item = mMap.addMarker(markerOptions);
+//                    Marker item = mMap.addMarker(markerOptions);
 
-                    previous_marker.add(item);
+                    mClusterManager.addItem(new MyItem(latLng.latitude, latLng.longitude, place.getName(), markerSnippet));
+
+//                    previous_marker.add(item);
 
 
                 }
 
 
-                //중복 마커 제거
+                /*//중복 마커 제거
 
                 HashSet<Marker> hashSet = new HashSet<>();
 
@@ -792,7 +779,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
                 previous_marker.clear();
 
-                previous_marker.addAll(hashSet);
+                previous_marker.addAll(hashSet);*/
 
 
             }
@@ -880,17 +867,4 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         return list;
     }
 
-    /*public void parseXml(View view) {
-
-        ConnectivityManager manager = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
-        NetworkInfo info = manager.getActiveNetworkInfo();
-
-        if (info != null && info.isConnected()) {
-            ParseUrlTask task = new ParseUrlTask();
-            task.execute("http://openapi.gangnam.go.kr:8088/534d55444474776f3734424d6b6b43/xml/GnAnimalHospital/1/20");
-        } else {
-            Toast.makeText(this, "사용 가능한 네트워크가 없습니다.", Toast.LENGTH_SHORT).show();
-        }
-
-    }*/
 }
