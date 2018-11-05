@@ -129,8 +129,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         @Override
         protected String doInBackground(String... strings) {
 
-            mClusterManager.clearItems();
-
             HttpURLConnection connection = null;
             InputStream in = null;
             try {
@@ -188,7 +186,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                         publishProgress(item);
 
 
-
                     }
 
                 }
@@ -210,6 +207,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         @Override
         protected void onPreExecute() {
             mMap.clear();
+            mClusterManager.clearItems();
         }
 
         @Override
@@ -218,9 +216,12 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         }
 
+
+
         @Override
         protected void onProgressUpdate(MyItem... values) {
             mClusterManager.addItem(values[0]);
+            mClusterManager.cluster();
         }
     }
 
@@ -390,7 +391,9 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void setCurrentLocation(Location location, String markerTitle, String markerSnippet) {
 
 
-        if (currentMarker != null) currentMarker.remove();
+        if (currentMarker != null) {
+            currentMarker.remove();
+        }
 
 
         LatLng currentLatLng = new LatLng(location.getLatitude(), location.getLongitude());
@@ -411,7 +414,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         CameraUpdate cameraUpdate = CameraUpdateFactory.newLatLng(currentLatLng);
         mMap.moveCamera(cameraUpdate);
-
+//        mMap.animateCamera(cameraUpdate);
 
     }
 
@@ -517,16 +520,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         mMap = googleMap;
 
-        mClusterManager = new ClusterManager<>(this, mMap);
-        mMap.setOnCameraIdleListener(mClusterManager);
-        mMap.setOnMarkerClickListener(mClusterManager);
-        mMap.setOnInfoWindowClickListener(new GoogleMap.OnInfoWindowClickListener() {
-            @Override
-            public void onInfoWindowClick(Marker marker) {
-
-            }
-        });
-
         //런타임 퍼미션 요청 대화상자나 GPS 활성 요청 대화상자 보이기전에
         //지도의 초기위치를 서울로 이동
         setDefaultLocation();
@@ -579,16 +572,18 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
 
         mMap.getUiSettings().setMyLocationButtonEnabled(true);
-//        mMap.animateCamera(CameraUpdateFactory.zoomTo(17));
-        /*mMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
+        mMap.getUiSettings().setZoomControlsEnabled(true);
+        mMap.animateCamera(CameraUpdateFactory.zoomTo(17));
+//        mMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
+//
+//            @Override
+//            public void onMapClick(LatLng latLng) {
+//
+//                Log.d(TAG, "onMapClick :");
+//            }
+//        });
 
-            @Override
-            public void onMapClick(LatLng latLng) {
-
-                Log.d(TAG, "onMapClick :");
-            }
-        });*/
-
+        setUpClusterer();
 
     }
 
@@ -643,6 +638,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         CameraUpdate cameraUpdate = CameraUpdateFactory.newLatLngZoom(DEFAULT_LOCATION, 15f);
         mMap.moveCamera(cameraUpdate);
+//        mMap.animateCamera(cameraUpdate);
 
     }
 
@@ -785,6 +781,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
                 }
 
+                mClusterManager.cluster();
 
                 /*//중복 마커 제거
 
@@ -880,6 +877,25 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
 
         return list;
+    }
+
+    private void setUpClusterer() {
+        // Position the map.
+//        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 10));
+
+        // Initialize the manager with the context and the map.
+        // (Activity extends context, so we can pass 'this' in the constructor.)
+        mClusterManager = new ClusterManager<MyItem>(this, mMap);
+
+        // Point the map's listeners at the listeners implemented by the cluster
+        // manager.
+        mMap.setOnCameraIdleListener(mClusterManager);
+        mMap.setOnMarkerClickListener(mClusterManager);
+
+
+
+        // Add cluster items (markers) to the cluster manager.
+//        addItems();
     }
 
 
