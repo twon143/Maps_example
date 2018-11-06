@@ -1,17 +1,16 @@
 package edu.android.maps_example;
 
 import android.Manifest;
+import android.app.ProgressDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
-import android.graphics.drawable.Drawable;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationManager;
-import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Looper;
 import android.support.annotation.NonNull;
@@ -22,12 +21,12 @@ import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.support.v7.widget.CardView;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.ImageButton;
+import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import com.google.android.gms.common.GooglePlayServicesNotAvailableException;
@@ -67,7 +66,6 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 
@@ -115,13 +113,16 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     List<Marker> previous_marker = null;
 
-    Button btnSearchPetStore;
+    Button btnSearchBank;
     Button btnSearchCafe;
     Button btnSearchHospital;
     ImageButton place_picker;
 
     List<edu.android.maps_example.Location> list = null;
     private ClusterManager<MyItem> mClusterManager;
+    private boolean flag = false;
+
+    ProgressBar progressBar;
 
 
     class ParseUrlTask extends AsyncTask<String, MyItem, String> {
@@ -170,21 +171,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
                         LatLng latLng = new LatLng(addresses.get(0).getLatitude(), addresses.get(0).getLongitude());
 
-                        //TODO
-                        /*MarkerOptions markerOptions = new MarkerOptions();
-                        markerOptions.position(latLng);
-                        markerOptions.snippet(location.getAddress());
-                        markerOptions.title(location.getName());*/
-
-                        /*if (location.getStatus().equals("정상")) {
-                            markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN));
-                        } else {
-                            markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
-
-                        }*/
                         MyItem item = new MyItem(latLng.latitude, latLng.longitude, location.getName(), location.getAddress());
                         publishProgress(item);
-
 
                     }
 
@@ -208,14 +196,18 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         protected void onPreExecute() {
             mMap.clear();
             mClusterManager.clearItems();
+            progressBar.setVisibility(View.VISIBLE);
+            setButtonEnabled(false);
         }
 
         @Override
         protected void onPostExecute(String s) {
             Log.i(TAG, "onPostExecute: " + s);
+            progressBar.setVisibility(View.GONE);
+            Toast.makeText(MainActivity.this, "loading complete", Toast.LENGTH_SHORT).show();
+            setButtonEnabled(true);
 
         }
-
 
 
         @Override
@@ -236,9 +228,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         getSupportActionBar().hide();
 
-
-       /* CardView cardView = findViewById(R.id.cardView);
-        cardView.setAlpha(0.85f);*/
+        progressBar = findViewById(R.id.loadingProgressBar);
+        progressBar.setVisibility(View.GONE);
 
         PlaceAutocompleteFragment placeAutocompleteFragment = (PlaceAutocompleteFragment) getFragmentManager().findFragmentById(R.id.place_autocomplete_fragment);
         placeAutocompleteFragment.setOnPlaceSelectedListener(new PlaceSelectionListener() {
@@ -257,11 +248,12 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
         });
 
-        btnSearchPetStore = findViewById(R.id.btnSearchPetStore);
-        btnSearchPetStore.setOnClickListener(new View.OnClickListener() {
+        btnSearchBank = findViewById(R.id.btnSearchBank);
+        btnSearchBank.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                showPlaceInformation(currentPosition, PlaceType.PET_STORE);
+//                progressBar.setVisibility(View.VISIBLE);
+                showPlaceInformation(currentPosition, PlaceType.BANK);
             }
         });
 
@@ -269,6 +261,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         btnSearchCafe.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+//                progressBar.setVisibility(View.VISIBLE);
                 showPlaceInformation(currentPosition, PlaceType.CAFE);
             }
         });
@@ -411,9 +404,13 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         markerOptions.draggable(true);
 
         currentMarker = mMap.addMarker(markerOptions);
+        if (!flag) {
+            CameraUpdate cameraUpdate = CameraUpdateFactory.newLatLng(currentLatLng);
+            mMap.moveCamera(cameraUpdate);
+            flag = true;
+        }
 
-        CameraUpdate cameraUpdate = CameraUpdateFactory.newLatLng(currentLatLng);
-        mMap.moveCamera(cameraUpdate);
+
 //        mMap.animateCamera(cameraUpdate);
 
     }
@@ -519,6 +516,18 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         Log.d(TAG, "onMapReady :");
 
         mMap = googleMap;
+
+        /*try {
+            boolean success = mMap.setMapStyle(
+                    MapStyleOptions.loadRawResourceStyle(
+                            this, R.raw.map_style));
+            Log.d(TAG, "mMap setMapStyle()");
+            if (!success) {
+                Log.e(TAG, "Style parsing failed.");
+            }
+        } catch (Resources.NotFoundException e) {
+            Log.e(TAG, "Can't find style. Error: ", e);
+        }*/
 
         //런타임 퍼미션 요청 대화상자나 GPS 활성 요청 대화상자 보이기전에
         //지도의 초기위치를 서울로 이동
@@ -714,9 +723,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 //사용자가 GPS 활성 시켰는지 검사
                 if (checkLocationServicesStatus()) {
                     if (checkLocationServicesStatus()) {
-
                         Log.d(TAG, "onActivityResult : GPS 활성화 되있음");
-
 
                         needRequest = true;
 
@@ -744,7 +751,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     @Override
     public void onPlacesStart() {
-
+        progressBar.setVisibility(View.VISIBLE);
+        setButtonEnabled(false);
     }
 
     @Override
@@ -761,38 +769,15 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 for (noman.googleplaces.Place place : places) {
 
                     LatLng latLng = new LatLng(place.getLatitude(), place.getLongitude());
-
                     String markerSnippet = getCurrentAddress(latLng);
-
-                    /*MarkerOptions markerOptions = new MarkerOptions();
-
-                    markerOptions.position(latLng);
-
-                    markerOptions.title(place.getName());
-
-                    markerOptions.snippet(markerSnippet);*/
-
-//                    Marker item = mMap.addMarker(markerOptions);
 
                     mClusterManager.addItem(new MyItem(latLng.latitude, latLng.longitude, place.getName(), markerSnippet));
 
-//                    previous_marker.add(item);
-
-
                 }
 
+
+                Toast.makeText(MainActivity.this, "loading complete", Toast.LENGTH_SHORT).show();
                 mClusterManager.cluster();
-
-                /*//중복 마커 제거
-
-                HashSet<Marker> hashSet = new HashSet<>();
-
-                hashSet.addAll(previous_marker);
-
-                previous_marker.clear();
-
-                previous_marker.addAll(hashSet);*/
-
 
             }
 
@@ -803,6 +788,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     @Override
     public void onPlacesFinished() {
+        progressBar.setVisibility(View.GONE);
+        setButtonEnabled(true);
 
     }
 
@@ -880,8 +867,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     private void setUpClusterer() {
-        // Position the map.
-//        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 10));
 
         // Initialize the manager with the context and the map.
         // (Activity extends context, so we can pass 'this' in the constructor.)
@@ -892,10 +877,13 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         mMap.setOnCameraIdleListener(mClusterManager);
         mMap.setOnMarkerClickListener(mClusterManager);
 
+    }
 
-
-        // Add cluster items (markers) to the cluster manager.
-//        addItems();
+    private void setButtonEnabled(boolean flag) {
+        btnSearchBank.setEnabled(flag);
+        btnSearchHospital.setEnabled(flag);
+        btnSearchCafe.setEnabled(flag);
+        place_picker.setEnabled(flag);
     }
 
 
