@@ -582,7 +582,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         mMap.getUiSettings().setMyLocationButtonEnabled(true);
         mMap.getUiSettings().setZoomControlsEnabled(true);
-        mMap.animateCamera(CameraUpdateFactory.zoomTo(17));
+        mMap.animateCamera(CameraUpdateFactory.zoomTo(15f));
 //        mMap.setOnMapClickListener(new GoogleMap.OnMapClickListener() {
 //
 //            @Override
@@ -803,7 +803,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 .listener(MainActivity.this)
                 .key("AIzaSyCmwhxZezwoJR_EzaVc19JCLJvG1PQ5xL0")
                 .latlng(location.latitude, location.longitude)//현재 위치
-                .radius(500) //500 미터 내에서 검색
+                .radius(800) //500 미터 내에서 검색
                 .type(type) //타입지정( ex)PlaceType.Cafe)
                 .build()
                 .execute();
